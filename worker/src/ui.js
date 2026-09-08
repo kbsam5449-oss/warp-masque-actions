@@ -197,7 +197,7 @@ async function go(e){
 </body></html>`;
 }
 
-export function renderUI(state, host, sp, token, cred, pushToken, protonCred) {
+export function renderUI(state, host, sp, token, cred, pushToken, protonCred, windUsage) {
   const s = state || {};
   const warp = s.warp || {};
   const stat = s.stats || {};
@@ -213,6 +213,12 @@ export function renderUI(state, host, sp, token, cred, pushToken, protonCred) {
   const pushUrl = pushToken ? `https://${host}/push/${pushToken}` : "";
   const pExp = protonCred && protonCred.expiresAt
     ? new Date(protonCred.expiresAt * 1000) : null;
+  const windInfo = s.wind || null;
+  const windPct = windUsage && windUsage.max
+    ? Math.round((windUsage.used / windUsage.max) * 100) : 0;
+  const gb = (n) => (n / 1073741824).toFixed(2) + " GB";
+  const windUsageTxt = windUsage && windUsage.max
+    ? `${gb(windUsage.used)} / ${gb(windUsage.max)}（${windPct}%）` : null;
   const pLeft = pExp ? Math.floor((pExp.getTime() - Date.now()) / 86400000) : null;
 
   const row = (k, v, cls = "") =>
@@ -310,6 +316,7 @@ export function renderUI(state, host, sp, token, cred, pushToken, protonCred) {
         <b>亚洲/欧洲/美洲线路</b> — 走 MASQUE 再落 Opera，能换出口国家，但多一跳会慢些。<br>
         <b>WARP直连</b> — 只走 MASQUE，出口是 Cloudflare 自己的 IP，快但选不了国家。<br>
         <b>Proton线路</b> — MASQUE 打底 + Proton WireGuard 落地，10 个国家（配置后出现）。<br>
+        <b>Windscribe线路</b> — MASQUE 打底 + Windscribe 落地，13 个地区，有香港（配置后出现）。<br>
         套娃线路超时或落地挂了，切 WARP直连顶上。
       </div>
       <div id="msg"></div>
@@ -323,6 +330,7 @@ export function renderUI(state, host, sp, token, cred, pushToken, protonCred) {
         <div class="cell"><div class="n">${stat.landings ?? "—"}</div><div class="l">Opera 落地</div></div>
         <div class="cell"><div class="n">${stat.entries ?? "—"}</div><div class="l">WARP 直连</div></div>
         <div class="cell"><div class="n">${stat.proton || "—"}</div><div class="l">Proton 落地</div></div>
+        <div class="cell"><div class="n">${stat.wind || "—"}</div><div class="l">Windscribe 落地</div></div>
       </div>
       <div class="note">
         每个落地和每个接入点都组合一遍，任一环失效都还有别的路走。<br>
@@ -380,9 +388,34 @@ export function renderUI(state, host, sp, token, cred, pushToken, protonCred) {
       <div class="note">
         把这个地址填进 GitHub 仓库 Secrets 的 <b>WORKER_PUSH_URL</b>，就这一个。<br>
         然后跑 <b>取 Proton 凭据</b> 流水线，之后每 3 天自动续，不用再管。<br>
+        <b>取 Windscribe 账号</b> 那条也用同一个地址，它会自己在末尾加 <code>/wind</code>。<br>
         地址里带令牌，只能写 Proton 凭据、动不了管理页；泄露了点「换一个」。
         ${protonCred ? '<br><a href="#" onclick="go(\'/api/proton/clear\');return false" ' +
           'style="color:var(--red)">清除 Proton 凭据</a>' : ""}
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-t">Windscribe 落地</div>
+      ${windInfo ? `
+      <div class="row"><span class="k">状态</span><span class="v ok">已注册 ${
+        windInfo.servers} 台</span></div>
+      <div class="row"><span class="k">账号</span><span class="v">${windInfo.userId}</span></div>
+      ${windUsageTxt ? `<div class="row"><span class="k">本月流量</span><span class="v ${
+        windPct > 90 ? "warn" : "ok"}">${windUsageTxt}</span></div>` : ""}
+      ` : `
+      <div class="row"><span class="k">状态</span><span class="v warn">未启用</span></div>
+      `}
+      <div class="note">
+        免费额度 <b>每月 2GB</b>，落地是机房 IP（M247 为主），
+        13 个地区里<b>亚洲只有香港</b>。<br>
+        账号走 GitHub Actions 开 —— Worker 自己开不出能用的号，
+        Cloudflare 的出口 IP 是共享的，早被人用过，
+        Windscribe 只会发 1MB 的降额号，那种号连代理凭据都取不到。<br>
+        跑一次 <b>取 Windscribe 账号</b> 流水线就行，用的是上面那个推送地址。
+        额度用完了再跑一次换个号。
+        ${windInfo ? '<br><a href="#" onclick="go(\'/api/wind/clear\');return false" ' +
+          'style="color:var(--red)">清除 Windscribe 账号</a>' : ""}
       </div>
     </div>
 
